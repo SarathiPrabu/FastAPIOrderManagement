@@ -7,8 +7,20 @@ class Customer(BaseModel):
     name: str
     phone: str
 
+class Item(BaseModel):
+    item_id: int | None = None
+    name: str
+    price: float
+
+class Order(BaseModel):
+    order_id : int | None =None
+    notes: str
+    timestamp: int
+    customer_id: int
+    items: list[Item]
+
 app = FastAPI()
-@app.get("/customers/{customer_id}")
+@app.get("/customers/{customer_id}", response_model=Customer)
 def read_customer(customer_id: int, q=None):
     conn = sqlite3.connect('db.sqlite')
     cursor = conn.cursor()
@@ -78,3 +90,90 @@ def delete_customer(customer_id:int):
     finally:
         conn.close()
     return {"Message":f"{modified} rows affected"}
+
+@app.get("/items/{item_id}")
+def get_item(item_id:int):
+    conn = sqlite3.connect('db.sqlite')
+    cursor = conn.cursor()
+    cursor.execute("SELECT item_id, name, price from ITEMS where item_id = ?", (item_id,))
+    item = cursor.fetchone()
+    conn.close()
+    if item != None:
+        return Item(item_id=item[0],name=item[1],price=item[2])
+    else:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+@app.post("/items/")
+def create_item(item:Item):
+    try:
+        conn = sqlite3.connect('db.sqlite')
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO ITEMS (name, price) VALUES(?,?)",(item.name, item.price))
+        item.item_id = cursor.lastrowid
+        conn.commit()
+    except sqlite3.IntegrityError as ie:
+        raise HTTPException(status_code=409, detail="Item already exists") 
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=400, detail="Unable to insert the item!") 
+    finally:
+        conn.close()
+    return {"detail":"Item Added", "Item":item}
+
+@app.delete("/items/{item_id}")
+def delete_item(item_id:int):
+    if item_id == None:
+        raise HTTPException(status_code=400, detail="Invalid Item ID!") 
+    try:
+        conn = sqlite3.connect('db.sqlite')
+        cursor = conn.cursor()
+        cursor.execute(
+            """DELETE FROM ITEMS 
+            WHERE item_id = ?""",
+            (item_id,))
+        modified = cursor.rowcount
+        if modified == 1:
+            conn.commit()
+        else:
+            conn.rollback()
+            raise HTTPException(status_code=404, detail="Item ID not found") 
+    finally:
+        conn.close()
+    return {"detail":f"{modified} rows affected"}
+
+@app.put("/items/{item_id}")
+def update_item(item_id:int, item:Item):
+    if item_id != item.item_id:
+        raise HTTPException(status_code = 400, detail = "Invalid Item ID")
+    try:
+        conn = sqlite3.connect("db.sqlite")
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ITEMS SET name=?,price=? WHERE item_id = ?",(item.name,item.price,item.item_id))
+        modified_rows = cursor.rowcount
+        # Checks if the update is affected exactly one row
+        # If the item id is not found or it affects more than 1 row then update is considered as failed
+        if cursor.rowcount != 1:
+            conn.rollback()
+            raise HTTPException(status_code= 404, detail = "Item not found")
+        conn.commit()
+    finally:
+        conn.close()
+    return {"detail":"Item updated", "item":item}
+
+
+@app.post("/orders/")
+def create_order(order:Order):
+    pass
+
+@app.get("/orders/{order_id}")
+def get_order(order_id:int):
+    pass
+
+@app.delete("/orders/{order_id}")
+def delete_order(order_id:int):
+    pass
+
+@app.put("/orders/{order_id}")
+def update_order(order_id:int):
+    pass
+
