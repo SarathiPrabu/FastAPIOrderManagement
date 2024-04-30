@@ -9,7 +9,7 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS CUSTOMERS(
 customer_id INTEGER PRIMARY KEY,
 name CHAR(64) NOT NULL,
-phone CHAR(10) NOT NULL);
+phone CHAR(10) UNIQUE NOT NULL);
 """)
 
 cursor.execute(
@@ -33,9 +33,8 @@ price REAL NOT NULL);
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS ORDER_LIST(
 order_list_id INTEGER PRIMARY KEY,
-order_id INTEGER NOT NULL,
+order_id INTEGER NOT NULL REFERENCES ORDERS(order_id) ON DELETE CASCADE,
 item_id INTEGER NOT NULL,
-FOREIGN KEY(order_id) REFERENCES ORDERS(order_id),
 FOREIGN KEY(item_id) REFERENCES ITEMS(item_id));
 """)
 
@@ -88,6 +87,5 @@ if __name__ == "__main__":
         for items in order['items']:
             item_id = cursor.execute("SELECT item_id FROM ITEMS WHERE name = ? ",(items['name'],)).fetchone()[0]
             cursor.execute("INSERT INTO ORDER_LIST (order_id, item_id) VALUES (?,?)",(order_id, item_id))
-
     connection.commit()
     connection.close()
